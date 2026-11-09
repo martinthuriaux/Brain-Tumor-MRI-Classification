@@ -1,0 +1,15 @@
+Do this once 
+
+git switch main
+git pull
+git switch -c martin
+git push -u origin martin
+
+Do this for each time you work on the document
+
+git switch martin
+git pull origin main      # get everything teammates have merged
+# ...work...
+git add .
+git commit -m "Add data augmentation"
+git push
