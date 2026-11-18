@@ -1,3 +1,0 @@
-This is my first Git experiment.
-I am learning how GitHub works.
-
