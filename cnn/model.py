@@ -30,7 +30,7 @@ class ConvBlock(nn.Module):
             nn.Conv2d(in_ch, out_ch, kernel_size=3, padding=1, bias=False),
 
             # batch normalization normalizes the output of the conv2d layer, setting mean to 0 and variance to 1.
-            # this is beneficial in training
+            # this is beneficial in training (see https://arxiv.org/pdf/1502.03167, section 3.2 and experiments)
             nn.BatchNorm2d(out_ch),
 
             # any negative values in the output of the batch normalization layer are set to 0, and positive values are kept as is.
@@ -41,6 +41,7 @@ class ConvBlock(nn.Module):
             # second convolution –> batch normalization –> ReLU activation
             nn.Conv2d(out_ch, out_ch, kernel_size=3, padding=1, bias=False),
             nn.BatchNorm2d(out_ch),
+            #TODO: Investigate between different activation functions (ie GeLU, LeakyReLu).
             nn.ReLU(inplace=True),
 
             # max pooling layer with kernel size of 2 to halve size. we can also try with average pool to see how it works
