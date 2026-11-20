@@ -9,8 +9,7 @@ VAL_FRACTION = 0.15
 SEED = 42
 
 # Note that this mean and standard deviation are just guesses for now.
-# TODO: Improve these values by calculating the mean and standard deviation of the training dataset.
-MEAN, STD = [0.5], [0.5]
+MEAN, STD = [0.1843], [0.1985]
 
 # training images: preprocessing + random augmentation
 # The compose here does it so that the transformations are applied in the order they are listed.
