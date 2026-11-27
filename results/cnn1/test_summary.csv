@@ -1,0 +1,2 @@
+model,run,epoch,test_loss,accuracy,macro_f1
+cnn1_epoch2_best_model.pth,1,2,0.964,0.7006,0.6915

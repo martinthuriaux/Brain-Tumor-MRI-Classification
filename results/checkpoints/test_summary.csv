@@ -1,0 +1,2 @@
+checkpoints,epoch,test_loss,accuracy,accuracy_ci_low,accuracy_ci_high,macro_f1,macro_f1_ci_low,macro_f1_ci_high
+checkpoints,20,0.6344,0.8962,0.8812,0.9112,0.8927,0.8767,0.9077
