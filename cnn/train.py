@@ -1,97 +1,156 @@
+import re
 import torch
 from torch import nn
 from pathlib import Path
+from tqdm import tqdm
 
 from data_preprocessing import get_loaders
 from model import CNN
 
-# Create the folder where model weights will be saved
-Path("checkpoints_2").mkdir(exist_ok=True)
+# checkpoints/ at the repo root, worked out from this file's location (cnn/train.py -> repo root)
+CHECKPOINT_DIR = Path(__file__).resolve().parent.parent / "checkpoints"
+EPOCHS = 2
 
-# Load training, validation and test data from data_preprocessing.py
-train_loader, val_loader, test_loader, class_names = get_loaders()
-
-print("Classes:", class_names)
-print("Training images:", len(train_loader.dataset))
-print("Validation images:", len(val_loader.dataset))
-
-# Use GPU if available, otherwise CPU
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
-model = CNN(num_classes=len(class_names)).to(device)
-
-criterion = nn.CrossEntropyLoss()
-
-optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
-
-# Training and validation loop
-for epoch in range(20):
-
-    model.train()
-    total_loss = 0.0
-    total_images = 0
-    correct = 0
-
-    for images, labels in train_loader: # Loop through each batch of images and labels in the training data
-        images = images.to(device)
-        labels = labels.to(device)
-
-        optimizer.zero_grad()  # Clear gradients from the previous batch.
-
-        outputs = model(images) # Produce four scores for each MRI.
-        predictions = outputs.argmax(dim=1) # Find the predicted class (highest score) for each image
-        loss = criterion(outputs, labels) # Measure the batch's average error.
-
-        loss.backward()  # Calculate gradients for this batch.
-        optimizer.step()  # Use those gradients to update the weights.
+def next_run_number(folder):
+    """Return the next free run number N, based on the cnnN_epoch<E>_best_model.pth files already in folder."""
+    numbers = []
+    for path in folder.glob("cnn*_best_model.pth"):
+        match = re.fullmatch(r"cnn(\d+)_epoch\d+_best_model\.pth", path.name)
+        if match:
+            numbers.append(int(match.group(1)))
+    return max(numbers, default=0) + 1
 
 
-        batch_size = labels.size(0)
-        total_loss += loss.item() * batch_size
-        total_images += batch_size
-        correct += (predictions == labels).sum().item()
+def get_device():
+    """Use an NVIDIA GPU or an Apple Silicon GPU if there is one, otherwise the CPU."""
+    if torch.cuda.is_available():
+        return torch.device("cuda")
+    if torch.backends.mps.is_available():
+        return torch.device("mps")
+    return torch.device("cpu")
 
-    # Calculate average loss and training accuracy
-    train_loss = total_loss / total_images
-    train_accuracy = 100 * correct / total_images
 
-    # Validation loop
-    model.eval()
-    val_loss = 0.0
-    val_images = 0
-    val_correct = 0
+def main():
+    # Create the folder where model weights will be saved, and pick this run's number
+    # so that each run writes its own cnnN_... file and never overwrites an earlier run
+    CHECKPOINT_DIR.mkdir(exist_ok=True)
+    run_number = next_run_number(CHECKPOINT_DIR)
+    print(f"Run number: {run_number} (best model will be saved as {CHECKPOINT_DIR.name}/cnn{run_number}_epoch<E>_best_model.pth)")
 
-    with torch.no_grad():
+    # Load training, validation and test data from data_preprocessing.py
+    train_loader, val_loader, test_loader, class_names = get_loaders()
 
-        for images, labels in val_loader:
+    print("Classes:", class_names)
+    print("Training images:", len(train_loader.dataset))
+    print("Validation images:", len(val_loader.dataset))
+
+    device = get_device()
+    print("Using device:", device)
+    model = CNN(num_classes=len(class_names)).to(device)
+
+    criterion = nn.CrossEntropyLoss()
+
+    optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
+
+    # Best model so far: highest validation accuracy, ties broken by the lower validation loss
+    # (the same rule evaluation.py uses to pick the best epoch)
+    best_accuracy = -1.0
+    best_loss = float("inf")
+    best_path = None
+
+    # Training and validation loop
+    for epoch in range(EPOCHS):
+
+        model.train()
+        total_loss = 0.0
+        total_images = 0
+        correct = 0
+
+        # Progress bar over the training batches, showing the running loss and accuracy
+        train_bar = tqdm(train_loader, desc=f"Epoch {epoch + 1}/{EPOCHS} [train]", unit="batch")
+
+        for images, labels in train_bar: # Loop through each batch of images and labels in the training data
             images = images.to(device)
             labels = labels.to(device)
 
-            outputs = model(images)
-            predictions = outputs.argmax(dim=1)
-            loss = criterion(outputs, labels)
+            optimizer.zero_grad()  # Clear gradients from the previous batch.
+
+            outputs = model(images) # Produce four scores for each MRI.
+            predictions = outputs.argmax(dim=1) # Find the predicted class (highest score) for each image
+            loss = criterion(outputs, labels) # Measure the batch's average error.
+
+            loss.backward()  # Calculate gradients for this batch.
+            optimizer.step()  # Use those gradients to update the weights.
+
 
             batch_size = labels.size(0)
-            val_loss += loss.item() * batch_size
-            val_images += batch_size
-            val_correct += (predictions == labels).sum().item()
+            total_loss += loss.item() * batch_size
+            total_images += batch_size
+            correct += (predictions == labels).sum().item()
 
-    val_loss = val_loss / val_images
-    val_accuracy = 100 * val_correct / val_images
+            train_bar.set_postfix(loss=f"{total_loss / total_images:.4f}",
+                                  acc=f"{100 * correct / total_images:.2f}%")
 
-    # Print the results 
-    print(
-        f"Epoch {epoch + 1}: "
-        f"Train loss = {train_loss:.4f} | "
-        f"Train accuracy = {train_accuracy:.2f}% | "
-        f"Val loss = {val_loss:.4f} | "
-        f"Val accuracy = {val_accuracy:.2f}%"
-    )
+        # Calculate average loss and training accuracy
+        train_loss = total_loss / total_images
+        train_accuracy = 100 * correct / total_images
 
-    # Save model weights after each epoch
-    torch.save(
-        model.state_dict(),
-        f"checkpoints_2/cnn_epoch_{epoch + 1}.pth"
-    )
+        # Validation loop
+        model.eval()
+        val_loss = 0.0
+        val_images = 0
+        val_correct = 0
 
-print("Finished Training")
+        with torch.no_grad():
+
+            # leave=False removes the validation bar once it finishes, to keep the output short
+            for images, labels in tqdm(val_loader, desc=f"Epoch {epoch + 1}/{EPOCHS} [val]",
+                                       unit="batch", leave=False):
+                images = images.to(device)
+                labels = labels.to(device)
+
+                outputs = model(images)
+                predictions = outputs.argmax(dim=1)
+                loss = criterion(outputs, labels)
+
+                batch_size = labels.size(0)
+                val_loss += loss.item() * batch_size
+                val_images += batch_size
+                val_correct += (predictions == labels).sum().item()
+
+        val_loss = val_loss / val_images
+        val_accuracy = 100 * val_correct / val_images
+
+        # Print the results
+        print(
+            f"Epoch {epoch + 1}: "
+            f"Train loss = {train_loss:.4f} | "
+            f"Train accuracy = {train_accuracy:.2f}% | "
+            f"Val loss = {val_loss:.4f} | "
+            f"Val accuracy = {val_accuracy:.2f}%"
+        )
+
+        # Save the model weights only if this epoch is the best one so far
+        if val_accuracy > best_accuracy or (val_accuracy == best_accuracy and val_loss < best_loss):
+            best_accuracy = val_accuracy
+            best_loss = val_loss
+
+            new_path = CHECKPOINT_DIR / f"cnn{run_number}_epoch{epoch + 1}_best_model.pth"
+            torch.save(model.state_dict(), new_path)
+
+            # Delete this run's previous best, so each run keeps exactly one file
+            if best_path is not None:
+                best_path.unlink(missing_ok=True)
+            best_path = new_path
+
+            print(f"  New best model saved to {best_path.relative_to(CHECKPOINT_DIR.parent)}")
+
+    print("Finished Training")
+    print(f"Best model: {best_path.relative_to(CHECKPOINT_DIR.parent)} "
+          f"(Val accuracy = {best_accuracy:.2f}% | Val loss = {best_loss:.4f})")
+
+
+# The guard is needed because the DataLoader workers (num_workers=2) re-import this file on
+# macOS and Windows; without it, every worker would start the whole training again.
+if __name__ == "__main__":
+    main()
