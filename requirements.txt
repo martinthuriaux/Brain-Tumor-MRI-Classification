@@ -5,6 +5,8 @@ torchvision>=0.15
 scikit-learn>=1.3
 Pillow>=10.0
 numpy>=1.24
-maptplotlib
+matplotlib
+seaborn
 scipy
 pandas
+tqdm
