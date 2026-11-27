@@ -1,0 +1,24 @@
+Windows idle sleep hold active
+Training PID 30560. Starting 20 epochs from fresh weights.
+Epoch 1: Loss = 0.9271 | Accuracy = 61.36%
+Epoch 2: Loss = 0.7967 | Accuracy = 67.11%
+Epoch 3: Loss = 0.7320 | Accuracy = 69.77%
+Epoch 4: Loss = 0.6449 | Accuracy = 74.25%
+Epoch 5: Loss = 0.5738 | Accuracy = 78.89%
+Epoch 6: Loss = 0.5355 | Accuracy = 79.68%
+Epoch 7: Loss = 0.4931 | Accuracy = 82.07%
+Epoch 8: Loss = 0.4587 | Accuracy = 83.20%
+Epoch 9: Loss = 0.4317 | Accuracy = 84.82%
+Epoch 10: Loss = 0.4084 | Accuracy = 84.52%
+Epoch 11: Loss = 0.3904 | Accuracy = 85.89%
+Epoch 12: Loss = 0.3504 | Accuracy = 87.18%
+Epoch 13: Loss = 0.3324 | Accuracy = 88.16%
+Epoch 14: Loss = 0.3120 | Accuracy = 88.59%
+Epoch 15: Loss = 0.3095 | Accuracy = 89.07%
+Epoch 16: Loss = 0.2760 | Accuracy = 90.43%
+Epoch 17: Loss = 0.2451 | Accuracy = 91.50%
+Epoch 18: Loss = 0.2409 | Accuracy = 91.39%
+Epoch 19: Loss = 0.2373 | Accuracy = 91.70%
+Epoch 20: Loss = 0.2171 | Accuracy = 92.05%
+Training completed successfully. Verified 20 checkpoints and loaded the final checkpoint.
+Windows idle sleep hold released

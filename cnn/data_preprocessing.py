@@ -2,7 +2,8 @@ from pathlib import Path
 
 from sklearn.model_selection import train_test_split
 from torch.utils.data import DataLoader, Subset
-from torchvision import datasets, transforms
+from torchvision.datasets import ImageFolder
+from torchvision import transforms
 
 IMG_SIZE = 224
 VAL_FRACTION = 0.15
@@ -46,9 +47,9 @@ def get_loaders(batch_size=32, val_fraction=VAL_FRACTION, seed=SEED, num_workers
     # Here we load the datasets using ImageFolder, which assumes that the images are organized in subdirectories named after their classes.
     # The Training folder is loaded twice: train_full applies train_transform (augmented) and train_full_eval applies eval_transform (not augmented).
     # The test_set applies eval_transform.
-    train_full      = datasets.ImageFolder(DATA_DIR / "Training", transform=train_transform)
-    train_full_eval = datasets.ImageFolder(DATA_DIR / "Training", transform=eval_transform)
-    test_set        = datasets.ImageFolder(DATA_DIR / "Testing",  transform=eval_transform)
+    train_full      = ImageFolder(DATA_DIR / "Training", transform=train_transform)
+    train_full_eval = ImageFolder(DATA_DIR / "Training", transform=eval_transform)
+    test_set        = ImageFolder(DATA_DIR / "Testing",  transform=eval_transform)
 
     # both copies must list the files in the same order, otherwise the validation labels would be wrong
     assert train_full.samples == train_full_eval.samples, "the two copies list files in different orders"
