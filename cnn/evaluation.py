@@ -13,12 +13,15 @@ Run from anywhere in the repo:
     python cnn/evaluation.py
 
 Figures and CSV files are saved to results/cnn<N>/.
+If train.py saved a training history (checkpoints/cnn<N>_history.csv), the loss and accuracy
+curves are plotted as well.
 '''
 
 import re
 from pathlib import Path
 
 import matplotlib.pyplot as plt
+from matplotlib.ticker import MaxNLocator
 import numpy as np
 import pandas as pd
 import seaborn as sns
@@ -131,6 +134,30 @@ def plot_per_class_metrics(per_class, model_label, out_dir):
     fig.tight_layout()
     fig.savefig(out_dir / "per_class_metrics.png", dpi=150)
 
+def plot_training_curves(history, best_epoch, model_label, out_dir):
+    """Loss and accuracy per epoch, for the training and the validation data.
+
+    Reading the curves:
+      both still going down/up at the end -> the model was still learning, more epochs could help.
+      training keeps improving but validation stalls or gets worse -> the model starts to overfit.
+    The dashed line marks the epoch that train.py kept (best validation accuracy).
+    """
+    fig, (ax_loss, ax_acc) = plt.subplots(1, 2, figsize=(12, 4.5))
+    for ax, column, label in [(ax_loss, "loss", "Loss (cross-entropy)"),
+                              (ax_acc, "accuracy", "Accuracy (%)")]:
+        ax.plot(history["epoch"], history[f"train_{column}"], marker="o", color=BLUE, label="training")
+        ax.plot(history["epoch"], history[f"val_{column}"], marker="o", color=ORANGE, label="validation")
+        ax.axvline(best_epoch, color="gray", linestyle="--", label=f"kept epoch ({best_epoch})")
+        ax.set_xlabel("Epoch")
+        ax.xaxis.set_major_locator(MaxNLocator(integer=True))   # whole epochs only on the x-axis
+        ax.set_ylabel(label)
+        ax.legend()
+    ax_loss.set_title(f"Loss per epoch ({model_label})")
+    ax_acc.set_title(f"Accuracy per epoch ({model_label})")
+    fig.tight_layout()
+    fig.savefig(out_dir / "training_curves.png", dpi=150)
+
+
 def main():
     sns.set_theme(style="whitegrid")
     device = get_device()
@@ -142,6 +169,18 @@ def main():
     # one results folder per run, so evaluating a new run never overwrites an earlier one
     out_dir = ROOT / "results" / f"cnn{run}"
     out_dir.mkdir(parents=True, exist_ok=True)
+
+    # Training curves, from the history train.py saved next to the model (if there is one)
+    history_path = CHECKPOINT_DIR / f"cnn{run}_history.csv"
+    if history_path.exists():
+        history = pd.read_csv(history_path)
+        history.to_csv(out_dir / "training_history.csv", index=False)
+        plot_training_curves(history, epoch, model_label, out_dir)
+        print(f"Training curves: {len(history)} epochs, "
+              f"{history['epoch_seconds'].sum() / 60:.1f} min of training in total")
+    else:
+        print(f"No training history found for cnn{run} ({history_path.name}): runs trained "
+              f"before train.py saved one have no curves.")
 
     # same split, same class order and same (non-augmented) preprocessing as train.py
     _, val_loader, test_loader, class_names = get_loaders()

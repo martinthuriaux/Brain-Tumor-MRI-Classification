@@ -1,4 +1,6 @@
+import csv
 import re
+import time
 import torch
 from torch import nn
 from pathlib import Path
@@ -37,6 +39,14 @@ def main():
     run_number = next_run_number(CHECKPOINT_DIR)
     print(f"Run number: {run_number} (best model will be saved as {CHECKPOINT_DIR.name}/cnn{run_number}_epoch<E>_best_model.pth)")
 
+    # Training history: one row per epoch, used by evaluation.py to plot the loss and accuracy curves.
+    # It is written after every epoch, so the curves are kept even if training stops early.
+    history_path = CHECKPOINT_DIR / f"cnn{run_number}_history.csv"
+    history_columns = ["epoch", "train_loss", "train_accuracy", "val_loss", "val_accuracy", "epoch_seconds"]
+    with open(history_path, "w", newline="") as f:
+        csv.writer(f).writerow(history_columns)
+    print(f"Training history will be saved to {history_path.relative_to(CHECKPOINT_DIR.parent)}")
+
     # Load training, validation and test data from data_preprocessing.py
     train_loader, val_loader, test_loader, class_names = get_loaders()
 
@@ -51,7 +61,9 @@ def main():
     criterion = nn.CrossEntropyLoss()
 
     optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
-
+    # Cosine schedule: the learning rate starts at 0.001 and smoothly decreases to almost 0 by the last epoch
+    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=2*EPOCHS)
+    
     # Best model so far: highest validation accuracy, ties broken by the lower validation loss
     # (the same rule evaluation.py uses to pick the best epoch)
     best_accuracy = -1.0
@@ -60,6 +72,7 @@ def main():
 
     # Training and validation loop
     for epoch in range(EPOCHS):
+        epoch_start = time.time()
 
         model.train()
         total_loss = 0.0
@@ -129,6 +142,14 @@ def main():
             f"Val loss = {val_loss:.4f} | "
             f"Val accuracy = {val_accuracy:.2f}%"
         )
+        
+        scheduler.step()  # lower the learning rate for the next epoch
+
+        # Add this epoch to the training history 
+        epoch_seconds = time.time() - epoch_start
+        with open(history_path, "a", newline="") as f:
+            csv.writer(f).writerow([epoch + 1, round(train_loss, 6), round(train_accuracy, 4),
+                                    round(val_loss, 6), round(val_accuracy, 4), round(epoch_seconds, 1)])
 
         # Save the model weights only if this epoch is the best one so far
         if val_accuracy > best_accuracy or (val_accuracy == best_accuracy and val_loss < best_loss):
@@ -150,7 +171,5 @@ def main():
           f"(Val accuracy = {best_accuracy:.2f}% | Val loss = {best_loss:.4f})")
 
 
-# The guard is needed because the DataLoader workers (num_workers=2) re-import this file on
-# macOS and Windows; without it, every worker would start the whole training again.
 if __name__ == "__main__":
     main()
